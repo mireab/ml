@@ -35,7 +35,7 @@ if __name__ == "__main__":
     # monk1_path =
     # monk2_path =
     # monk3_path =
-    cup_path = "cup\ML-CUP23-TR.csv"
+    cup_path = "./cup/ML-CUP23-TR.csv"
     # X, y = read_monk(monk1_path)
     X, x, y, z = read_cup(cup_path)
 
@@ -47,10 +47,12 @@ if __name__ == "__main__":
               'momentum':[0.0, 0.3, 0.8], 
               'activation_function':[ActivationFunctions.SIGMOID, ActivationFunctions.TANH], 
               'version': ['online'], 
-              'batch_size':[None]}
+              'batch_size':[None],
+              'quickprop': [False]}
 
-    GS = GridSearch(parameters, max_iter=700, cv = True, val_split=0.1, folds=None, regression = True)
-    GS.fit_and_evaluate(X, x, plot=False)
+    layers = [(InputLayer(10)), HiddenLayer(8, activation_function=ActivationFunctions.TANH, init_strategy=InitStrategies.RANDOM),HiddenLayer(8, activation_function=ActivationFunctions.TANH, init_strategy=InitStrategies.RANDOM), OutputLayer(1, activation_function= ActivationFunctions.ID)]
+    Network = RegressionNeuralNetwork(layers, learning_rate=0.01, momentum=0.8, random_seed=34, loss_function=mse, regularization=None)
+    Network.train(X, x, 200, epsilon=0.005, batch_size = 128, version="minibatch", crossvalidation=False, val_split=0.2, plot=True, stochastic = False)
     # layers=[InputLayer(17), HiddenLayer(6), OutputLayer(1)]
     # Network=NeuralNetwork(layers = layers, learning_rate= 30, momentum = 0.5, random_seed=86)
     # Network.crossvalidation=False

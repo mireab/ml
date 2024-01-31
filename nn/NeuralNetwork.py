@@ -201,9 +201,11 @@ class NeuralNetwork:
         if self.eta_decay is not None:
             self.eta_decay(*self.decay_args)
         epsilon = 1e-8 # to avoid divisions with 0 denominator 
+        
         for (weights_gradient, biases_gradient), layer in zip(cumulative_gradients,reversed(self._trainable_layers)):
             weights_difference = None
             bias_difference = None
+
             if self.adagrad:
                 if layer.Gt.shape != weights_gradient.shape:
                     layer.Gt = layer.Gt.reshape(-1, 1)  # Reshape Gt from (5,) to (5,1)
@@ -522,8 +524,22 @@ class NeuralNetwork:
         if verbose:
             print(f"Epoch {epoch}/{self.epochs} - Fold {fold} ----- Validation Loss: {val_loss} - Validation Accuracy: {e_val_report['accuracy']}")
 
+
+    def plot_accuracy(self,history):
+            for i, fold_data in enumerate(history):
+                fig, ax = plt.subplots()
+                train_acc = fold_data['train_accuracy']
+                val_acc = fold_data['val_accuracy']
+                ax.plot(range(len(train_acc)), train_acc, label=f'Fold {i+1} Training Accuracy')
+                ax.plot(range(len(val_acc)), val_acc, label=f'Fold {i+1} Validation Accuracy')
+                ax.set_xlabel("Epochs")
+                ax.set_ylabel("Loss")
+                ax.set_title(f"Training and Validation Accuracy - Fold {i+1}")
+                ax.legend()
+                plt.show()
+
     
-    def plot_fold_losses(self,history):
+    def plot_losses(self,history):
         for i, fold_data in enumerate(history):
             fig, ax = plt.subplots()
             train_loss = fold_data['train_loss']
@@ -538,7 +554,7 @@ class NeuralNetwork:
 
     
 
-    def train(self, X, y, epochs, version,  epsilon, verbose = False, batch_size=None, stochastic = None, crossvalidation = False, n_folds = 0, val_split = None, plot = False, eta_decay = None, decay_args = None, quickprop = False):
+    def train(self, X, y, epochs, version,  epsilon, verbose = False, batch_size=None, stochastic = None, crossvalidation = False, n_folds = 0, val_split = None, plot = False, eta_decay = None, decay_args = None, quickprop = False, adagrad = False):
         self.crossvalidation = crossvalidation
         self._quickprop = quickprop 
         self.n_folds = n_folds
@@ -546,6 +562,7 @@ class NeuralNetwork:
         self.epochs = epochs
         self.eta_decay = eta_decay
         self.decay_args = decay_args
+        self.adagrad = adagrad
         converged = False
         train_losses = []
         if self.crossvalidation:
@@ -576,6 +593,10 @@ class NeuralNetwork:
         if len(X) != len(y):
             raise ValueError("Input X and y must have the same number of patterns.")
 
+        if self.adagrad:
+            for l in self._trainable_layers:
+                l.Gt = np.zeros(l.weights.shape)
+                l.bias_Gt = np.zeros(l.biases.shape)
         # we split the data according to the validation method explicited in the parameters (if there is one)
         if crossvalidation == True:
 
@@ -602,7 +623,7 @@ class NeuralNetwork:
                         converged = True
                         print(f"Converged at epoch {e}.")
                     e += 1  # Increment the epoch counter
-                self._history[fold]["train_loss"].append(fold_losses)
+                self._history[fold]["train_loss"] = fold_losses
 
         else:
                 while not converged and e < epochs:
@@ -616,10 +637,11 @@ class NeuralNetwork:
                         converged = True
                         print(f"Converged at epoch {e}.")
                     e += 1  # Increment the epoch counter
-                self._history[0]["train_loss"]=train_losses
+                self._history[0]["train_loss"] = train_losses
 
         if plot:
-            self.plot_fold_losses(self._history)
+            self.plot_losses(self._history)
+            self.plot_accuracy(self._history)
                 
         if not converged:
              print("Convergence not reached within the specified threshold.")

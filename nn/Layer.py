@@ -51,7 +51,6 @@ class Layer:
         
     @property
     def _input_size(self):
-
         return self._previous_layer.unit_number
     
 

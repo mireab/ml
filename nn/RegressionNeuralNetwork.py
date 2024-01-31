@@ -8,7 +8,7 @@ from nn.Layer import *
 from nn.utils import *
 
 
-class NeuralNetwork:
+class RegressionNeuralNetwork:
 
     """
     Class representing a Neural Network.
@@ -193,23 +193,41 @@ class NeuralNetwork:
         """
         Function that, given the sum of the gradients for each pattern, updates the weights of each layer in the NN
         applying (if required) the momentum, the regularization and eventually performing quick-prop instead of
-        back-prop.
+        back-prop and scaling eta adaptatively using adagrad algorithm
 
         :param cumulative_gradients: (array of shape (number of layers, number of samples)) | A list containing a list 
         for each layer with the sum of the layer's gradients for each pattern.
         """
 
+        if self.eta_decay is not None:
+            self.eta_decay(*self.decay_args)
         epsilon = 1e-8 # to avoid divisions with 0 denominator 
+        
         for (weights_gradient, biases_gradient), layer in zip(cumulative_gradients,reversed(self._trainable_layers)):
+            weights_difference = None
+            bias_difference = None
+
+            if self.adagrad:
+                if layer.Gt.shape != weights_gradient.shape:
+                    layer.Gt = layer.Gt.reshape(-1, 1)  # Reshape Gt from (5,) to (5,1)
+                    layer.bias_Gt = layer.bias_Gt.reshape(-1, 1)
+                layer.Gt += weights_gradient ** 2
+                layer.bias_Gt += biases_gradient ** 2
+                weights_difference = self.eta / self.batch_size * (weights_gradient / (1e-8 + np.sqrt(layer.Gt)))
+                bias_difference = self.eta / self.batch_size * (biases_gradient / (1e-8 + np.sqrt(layer.bias_Gt)))
+
             if self._quickprop and layer._previous_w_gradient is not None:
                 denominator_w = (layer._previous_w_gradient - weights_gradient) + epsilon
                 weights_difference = self.eta/self.batch_size * (layer._previous_weights_update * (weights_gradient / denominator_w))
                 denominator_b = (layer._previous_b_gradient - biases_gradient) + epsilon
                 bias_difference = self.eta/self.batch_size * (layer._previous_bias_update * (biases_gradient / denominator_b))
+            
             else:
                 weights_difference = self.eta/self.batch_size * weights_gradient
                 bias_difference = self.eta/self.batch_size * biases_gradient
+            
             weights_difference += (self.momentum * layer._previous_weights_update) # To store the recent update
+            
             if self.regularization=='tikhonov':
                 weights_difference -= self._lambda * layer.weights
             layer._previous_weights_update = weights_difference
@@ -502,7 +520,7 @@ class NeuralNetwork:
 
     
 
-    def train(self, X, y, epochs, version,  epsilon, verbose = False, batch_size=None, stochastic = None, crossvalidation = False, n_folds = 0, val_split = None, plot = False, eta_decay = None, decay_args = None, quickprop = False):
+    def train(self, X, y, epochs, version,  epsilon, verbose = False, batch_size=None, stochastic = None, crossvalidation = False, n_folds = 0, val_split = None, plot = False, eta_decay = None, decay_args = None, quickprop = False, adagrad = True):
         self.crossvalidation = crossvalidation
         self._quickprop = quickprop 
         self.n_folds = n_folds
@@ -510,6 +528,7 @@ class NeuralNetwork:
         self.epochs = epochs
         self.eta_decay = eta_decay
         self.decay_args = decay_args
+        self.adagrad = adagrad
         converged = False
         train_losses = []
         if self.crossvalidation:
@@ -539,6 +558,11 @@ class NeuralNetwork:
 
         if len(X) != len(y):
             raise ValueError("Input X and y must have the same number of patterns.")
+
+        if self.adagrad:
+            for l in self._trainable_layers:
+                l.Gt = np.zeros(l.weights.shape)
+                l.bias_Gt = np.zeros(l.biases.shape)
 
         # we split the data according to the validation method explicited in the parameters (if there is one)
         if crossvalidation == True:

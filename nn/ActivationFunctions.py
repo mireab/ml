@@ -6,7 +6,7 @@ class ActivationFunctions(StrEnum):
     TANH = auto()
     ID = auto()
 
-    def _call_(self, z):
+    def __call__(self, z):
         match self:
             case ActivationFunctions.SIGMOID:
                 return (1 / (1 + np.exp(-z)))
