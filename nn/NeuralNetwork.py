@@ -31,7 +31,6 @@ class NeuralNetwork:
 
         loss_function : (str) | default = mse | The function used to calculate the loss: in this implementation
                         must be Mean Squared Error
-
     """
         
     def __init__(self, layers = None, learning_rate = 0.05, regularization = None, _lambda = None, momentum = 0.0,
