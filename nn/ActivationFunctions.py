@@ -4,13 +4,16 @@ from enum import StrEnum, auto
 class ActivationFunctions(StrEnum):
     SIGMOID = auto()
     TANH = auto()
+    ID = auto()
 
-    def __call__(self, z):
+    def _call_(self, z):
         match self:
             case ActivationFunctions.SIGMOID:
                 return (1 / (1 + np.exp(-z)))
             case ActivationFunctions.TANH:
                 return (np.exp(z) - np.exp(-z))/(np.exp(z) + np.exp(-z))
+            case ActivationFunctions.ID:
+                return z
 
 
     def derivative(self, z):
@@ -20,6 +23,8 @@ class ActivationFunctions(StrEnum):
                 return s * (1 - s)
             case ActivationFunctions.TANH:
                 return 1 - self(z)**2
+            case ActivationFunctions.ID:
+                return 1
 
     @property
     def threshold_value(self):

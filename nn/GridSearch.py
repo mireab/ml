@@ -1,5 +1,6 @@
 import numpy as np
 from nn.NeuralNetwork import *
+from nn.RegressionNeuralNetwork import *
 from nn.Layer import *
 from nn.utils import *
 from itertools import product
@@ -8,7 +9,7 @@ import sys
 
 
 class GridSearch:
-    def __init__(self, grid, random_seed = 42, cv = False, val_split=None, max_iter = 1000, folds = None):
+    def __init__(self, grid, random_seed = 42, cv = False, val_split=None, max_iter = 1000, folds = None, regression = False):
         self.grid = grid
         self._best_params = None
         self.metrics = None
@@ -17,6 +18,7 @@ class GridSearch:
         self.cv = cv
         self.folds = folds
         self.random_seed = random_seed
+        self.regression = regression
 
     def fit_and_evaluate(self, X, y, plot = False, ):
         performances = {}
@@ -34,33 +36,39 @@ class GridSearch:
                 self.stochastic = True
             else:
                 self.stochastic = False
-            if not (attributes['version'] != 'minibatch' and isinstance(attributes['batch_size'], int)):
-                if not (not attributes['regularization'] and attributes['_lambda'] != 0.0):
-                    layers = [InputLayer(len(X[0]))]
-                    for i in range(attributes['n_layers']):
-                        layers.append(HiddenLayer(attributes['n_units'], activation_function=attributes['activation_function']))
+            # if not (attributes['version'] != 'minibatch' and isinstance(attributes['batch_size'], int)):
+            if not (not attributes['regularization'] and attributes['_lambda'] != 0.0):
+                layers = [InputLayer(len(X[0]))]
+                for i in range(attributes['n_layers']):
+                    layers.append(HiddenLayer(attributes['n_units'], activation_function=attributes['activation_function']))
+                if self.regression:
+                    layers.append(OutputLayer(1, activation_function= ActivationFunctions.ID))
+                else:
                     layers.append(OutputLayer(1, activation_function = attributes['activation_function']))
 
+                if self.regression:
+                    network = RegressionNeuralNetwork(layers = layers, random_seed = self.random_seed)
+                else:
                     network = NeuralNetwork(layers=layers, random_seed=self.random_seed)
-                    attributes_to_set_NN = {key: value for key, value in attributes.items() if key not in ["n_layers", "n_units", "activation_function", "batch_size", "version", "quickprop"]}
-                    network.set_attributes(attributes_to_set_NN)
-                    
-                    if self.cv:
-                        if self.val_split is not None:
-                            network.train(X, y, epochs=self.max_iter, version=attributes['version'], batch_size=attributes['batch_size'], epsilon=0.005, crossvalidation=False, val_split = self.val_split, plot = plot, quickprop = attributes['quickprop'], stochastic=self.stochastic)
-                        else:
-                            network.train(X, y, epochs=self.max_iter, version=attributes['version'], batch_size=attributes['batch_size'], epsilon=0.005, crossvalidation=self.cv, val_split = None, plot = plot, n_folds = self.folds, quickprop = attributes['quickprop'], stochastic=self.stochastic)
-                        attributes = tuple(attributes.items())
-                        performances[attributes] = np.mean([fold['val_loss'][-1] for fold in network._history])
+                attributes_to_set_NN = {key: value for key, value in attributes.items() if key not in ["n_layers", "n_units", "activation_function", "batch_size", "version", "quickprop"]}
+                network.set_attributes(attributes_to_set_NN)
+                
+                if self.cv:
+                    if self.val_split is not None:
+                        network.train(X, y, epochs=self.max_iter, version=attributes['version'], batch_size=attributes['batch_size'], epsilon=0.005, crossvalidation=False, val_split = self.val_split, plot = plot, quickprop = attributes['quickprop'], stochastic=self.stochastic)
                     else:
-                        network.train(X, y, epochs=self.max_iter, version=attributes['version'], batch_size=attributes['batch_size'], epsilon=0.005, plot = plot, quickprop = attributes['quickprop'], stochastic=self.stochastic)
-                        attributes = tuple(attributes.items())
-                        performances[attributes] = network._history[0]['train_loss'][-1]
-                        
-                    p = [p for p in performances.values()]
-                    arg = [arg for arg in performances.items()]
-                    print(arg[-1], p[-1])
-                    del network
+                        network.train(X, y, epochs=self.max_iter, version=attributes['version'], batch_size=attributes['batch_size'], epsilon=0.005, crossvalidation=self.cv, val_split = None, plot = plot, n_folds = self.folds, quickprop = attributes['quickprop'], stochastic=self.stochastic)
+                    attributes = tuple(attributes.items())
+                    performances[attributes] = np.mean([fold['val_loss'][-1] for fold in network._history])
+                else:
+                    network.train(X, y, epochs=self.max_iter, version=attributes['version'], batch_size=attributes['batch_size'], epsilon=0.005, plot = plot, quickprop = attributes['quickprop'], stochastic=self.stochastic)
+                    attributes = tuple(attributes.items())
+                    performances[attributes] = network._history[0]['train_loss'][-1]
+                    
+                p = [p for p in performances.values()]
+                arg = [arg for arg in performances.items()]
+                print(arg[-1], p[-1])
+                del network
 
             if use_progress_bar:
                 progress_bar.update(1)
